@@ -37,6 +37,8 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+#define UART_DEBUG		huart1
+
 #define DISABLE_SBUS_OUT_ENABLE    0x00
 #define AUTONOMUOS_RC_ENABLE      0x01
 
@@ -74,15 +76,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart6_rx;
 
 /* USER CODE BEGIN PV */
-// UART1 DMA TX Status Tracking
-typedef enum {
-	UART1_TX_IDLE = 0,      // DMA transmit idle/complete
-	UART1_TX_BUSY = 1,      // DMA transmit in progress
-	UART1_TX_ERROR = 2      // DMA transmit error occurred
-} UART1_TX_Status_t;
-
-volatile UART1_TX_Status_t uart1_tx_status = UART1_TX_IDLE;
-
 uint16_t failsafe_status;
 uint16_t SBUS_footer;
 uint8_t buf[SBUS_FRAME_LENGTH];
@@ -127,43 +120,27 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /**
- * @brief Function to redirect printf to UART using DMA for Debugging
+ * @brief Function to redirect printf to UART for Debugging
  * @param file File descriptor (not used)
  * @param pData Pointer to data to be sent
  * @param len Length of data to be sent
- * @return Number of bytes written, or 0 if DMA is busy
+ * @return Number of bytes written on success, -1 on failure
  */
+#ifdef UART_DEBUG
 int _write(int file, char *pData, int len)
 {
-	// Validate input parameters
-	if (pData == NULL || len <= 0)
-	{
-		return 0;  // Return 0 for no data to send
+	// Gửi dữ liệu qua UART1 với timeout 100ms (blocking)
+	// HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&UART_DEBUG, (uint8_t*)pData, len);
+	HAL_StatusTypeDef status = HAL_UART_Transmit(&UART_DEBUG, (uint8_t*)pData, len, 100);
+	
+	// Trả về len nếu thành công, -1 nếu thất bại
+	if (status == HAL_OK) {
+		return len;
+	} else {
+		return -1;  // Gửi thất bại (timeout, error, v.v.)
 	}
-
-	// Check if DMA is ready (not busy from previous transmission)
-	if (huart1.gState != HAL_UART_STATE_READY)
-	{
-		return 0;  // DMA is busy, return 0 (data not sent)
-	}
-
-	// Set status to BUSY before DMA transmission
-	uart1_tx_status = UART1_TX_BUSY;
-
-	// Transmit data using DMA (non-blocking)
-	HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart1, (uint8_t*)pData, len);
-
-	// Check if DMA transmission was successful
-	if (status != HAL_OK)
-	{
-		uart1_tx_status = UART1_TX_ERROR;  // Set error status
-		return 0;  // DMA transmission failed, return 0
-	}
-
-//	HAL_UART_Transmit(&huart1, (uint8_t*)pData, len10);
-
-	return len;  // Return number of bytes queued fo// r transmission
 }
+#endif
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -580,29 +557,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /**
- * @brief UART TX Complete callback (DMA transmission completed)
- * Called by HAL when UART DMA TX transfer is complete
- */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if (huart->Instance == huart1.Instance) {
-		// UART1 TX DMA completed
-		uart1_tx_status = UART1_TX_IDLE;  // Set status back to IDLE
-	}
-}
-
-/**
  * @brief UART error callback
  * Called by HAL when an UART error occurs (framing, noise, overrun, etc.).
  * We use this to restart reception on huart6 so that reconnects/resynchronization work.
  */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-	if (huart->Instance == huart1.Instance) {
-		// UART1 error occurred
-		uart1_tx_status = UART1_TX_ERROR;
-	}
-	else if (huart->Instance == huart6.Instance) {
+	if (huart->Instance == huart6.Instance) {
 		// Attempt to abort any ongoing transfers and restart reception of the head-byte
 		HAL_UART_AbortReceive(&huart6);
 		// Clear any DMA/USART error flags handled by HAL implicitly; add debug print
@@ -654,10 +615,10 @@ int main(void)
 	// Start receiving 1 byte head check from SBUS (AirUnit) via DMA so we can detect frame head (0x0F)
 	// This ensures huart6 RX is active from boot and will be restarted after disconnects.
 	if (HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1) != HAL_OK) {
-		printf("Warning: Failed to start huart6 DMA reception at init\r\n");
+		printf("[WARN]: Failed to start huart6 DMA reception at init\r\n");
 	}
 	HAL_TIM_Base_Start_IT(&htim3); // Start timer for SBUS transmission
-	printf("INFO: setup done\r\n");
+	printf("[INFO]: Setup All\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */

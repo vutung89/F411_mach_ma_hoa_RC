@@ -1,15 +1,17 @@
-# ===== GITIGNORE cho STM32F4 Discovery Project =====
+# ===== GITIGNORE =====
 
 # === BỎ QUA TẤT CẢ MẶC ĐỊNH ===
 *
 !*/
-!.gitignore
+
+# === BỎ QUA THỰC THỂ (PHẢI ĐẶT TRƯỚC PHẦN THEO DÕI) ===
+# Bỏ qua thư mục Build
+Debug/
+Release/
 
 # === THEO DÕI CÁC THƯ MỤC SOURCE CODE ===
 !Core/
 !Drivers/
-!Backup/
-!images/
 
 # === THEO DÕI CÁC FILE CẤU HÌNH ===
 !*.ioc
@@ -19,19 +21,17 @@
 !.mxproject
 !.cproject
 !.project
+
 # === THEO DÕI CÁC FILE DOCUMENTATION ===
 !README.md
 !*.txt
-!*.md
+!Backup/
+!Doc/
 
 # === THEO DÕI CÁC SCRIPT ===
 !*.py
 !*.sh
 !*.bash
 
-# === BỎ QUA THỰC THỂ ===
-# Bỏ qua thư mục Build
-Debug/
-Release/
 
 
