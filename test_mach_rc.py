@@ -55,7 +55,7 @@ logging.basicConfig(
 # ------------------------------------------------------------------------------------------------------
 # PARAMETERS
 # ------------------------------------------------------------------------------------------------------
-# PowerShell: Get-CimInstance Win32_SerialPort | Select-Object DeviceID, Name, Description, ProviderType
+# PowerShell: [System.IO.Ports.SerialPort]::GetPortNames()
 MACH_GHI_DE_RC_PORT = 'COM10'
 # MACH_GHI_DE_RC_PORT = '/dev/ttyUSB0'
 BAUDRATE = 115200
@@ -192,8 +192,8 @@ class AsyncSerialRC:
             self.writer.write(self.p)
             await self.writer.drain()  # Chờ cho đến khi buffer được gửi hết
             
-            # Đọc 40 byte từ UART
-            data =await asyncio.wait_for(self.reader.readexactly(40), timeout=0.1)
+            # Đọc 40 byte từ UART với timeout dài hơn (100ms)
+            data = await asyncio.wait_for(self.reader.readexactly(40), timeout=0.1)
             if data[0] == 0xAA and data[1] == 0xAF:
                 ch_buf = data[2:38]  # 36 byte channel
                 crc_recv = data[38] | (data[39] << 8)
@@ -201,7 +201,12 @@ class AsyncSerialRC:
                 if crc_recv == crc_calc:
                     # Giải mã 18 channel (low-high byte)
                     rc_channels = [ch_buf[i] | (ch_buf[i+1] << 8) for i in range(0, 36, 2)]
-                    return rc_channels   
+                    logging.info("Nhận dữ liệu RC channels thành công.")
+                    return rc_channels
+                else:
+                    logging.warning(f"CRC không khớp. Tính toán: 0x{crc_calc:04X}, Nhận: 0x{crc_recv:04X}")
+            else:
+                logging.warning(f"Frame không hợp lệ. Header: 0x{data[0]:02X} 0x{data[1]:02X}")
         except asyncio.TimeoutError:
             logging.info("Gửi request RC thất bại: Không nhận được phản hồi (timeout).")
         except Exception as e:
@@ -286,12 +291,12 @@ async def main():
 
                 logging.info(f"RC command: P-R-Y-T: {rc_pitch}, {rc_roll}, {rc_yaw}, {rc_throttle}")
                 await rc_controller.send_commands_async(rc_pitch, rc_roll, rc_throttle, rc_yaw)
-                # doc rc_channels
-                rc_channels = await rc_controller.request_rc_channels()
-                if rc_channels:
-                    logging.info("18 channel: %s", rc_channels)
-                else:
-                    logging.info("Không nhận được dữ liệu RC channels.")
+                # # doc rc_channels
+                # rc_channels = await rc_controller.request_rc_channels()
+                # if rc_channels:
+                #     logging.info("18 channel: %s", rc_channels)
+                # else:
+                #     logging.info("Không nhận được dữ liệu RC channels.")
                 logging.info("--------------------------------------------------------------------\n")
                 await asyncio.sleep(TIME_DELAY)  # Chờ trước khi gửi lệnh tiếp theo
         finally:

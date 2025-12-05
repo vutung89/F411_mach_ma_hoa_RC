@@ -1,5 +1,4 @@
-# Mạch ghi đè RC
-mạch ghi đè tín hiệu RC từ SBUS
+# Mạch mã hóa tín hiệu RC
 
 ## Chức năng
 - đọc tín hiệu Sbus_in, giải thành tín hiệu rc_channels
@@ -11,6 +10,12 @@ mạch ghi đè tín hiệu RC từ SBUS
 - cổng SBUS: 3 pin: SBUS_in - GND - SBUS_out
 - cổng UART: 3 pin (RX - GND - TX)
 - cổng Debug: 6 pin (nạp st-link) : 3.3V - GND - SWDIO - SWCLK - RESET - ...
+## Cách Flash Firmware
+- Kết nối cổng Debug vào St-link
+- Dùng STM32 ST-link Ultility -> Option Bytes (CTRL+B) -> Option Bytes = 0 -> Disconnect
+- Dùng STM32CubeIDE -> Run
+- Dùng STM32 ST-link Ultility -> Option Bytes (CTRL+B) -> Option Bytes = 1 -> Disconnect
+- Ngắt Debug -> Cắm nguồn 12V, sbus, uart-usb vào mạch -> Test
 ## HDSD:
 - Mục đích của tập tin này là để kiểm tra việc gửi 
 lệnh RC và nhận phản hồi từ bộ điều khiển RC thông qua cổng serial.
