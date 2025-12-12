@@ -56,7 +56,7 @@ logging.basicConfig(
 # PARAMETERS
 # ------------------------------------------------------------------------------------------------------
 # PowerShell: [System.IO.Ports.SerialPort]::GetPortNames()
-MACH_GHI_DE_RC_PORT = 'COM10'
+MACH_GHI_DE_RC_PORT = 'COM12'
 # MACH_GHI_DE_RC_PORT = '/dev/ttyUSB0'
 BAUDRATE = 115200
 TIME_DELAY = 1  # Thời gian chờ giữa các lệnh
