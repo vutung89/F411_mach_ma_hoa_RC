@@ -43,4 +43,4 @@ hàm main để kiểm tra các lệnh khác nhau
 - Nếu gặp lỗi kết nối, hãy kiểm tra lại cổng serial và thiết bị.
 - Đảm bảo rằng thư viện crc đã được cài đặt để tính toán CRC16.
 
-![Hình ảnh Mạch](images/mach_ghi_de_RC.png)
+![Hình ảnh Mạch](Doc/mach_ghi_de_RC.png)
