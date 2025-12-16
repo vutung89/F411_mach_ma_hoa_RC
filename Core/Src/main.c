@@ -39,8 +39,8 @@
 
 #define UART_DEBUG		huart1
 
-#define DISABLE_SBUS_OUT_ENABLE    0x00
-#define AUTONOMUOS_RC_ENABLE      0x01
+#define DISABLE_SBUS_OUT_ENABLE    	0x00
+#define AUTONOMUOS_RC_ENABLE      	0x01
 
 #define SBUS_FRAME_LENGTH    	25
 #define SBUS_HEADER           	0x0F
@@ -130,7 +130,6 @@ static void MX_USART1_UART_Init(void);
 int _write(int file, char *pData, int len)
 {
 	// Gửi dữ liệu qua UART1 với timeout 100ms (blocking)
-	// HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&UART_DEBUG, (uint8_t*)pData, len);
 	HAL_StatusTypeDef status = HAL_UART_Transmit(&UART_DEBUG, (uint8_t*)pData, len, 100);
 
 	// Trả về len nếu thành công, -1 nếu thất bại
