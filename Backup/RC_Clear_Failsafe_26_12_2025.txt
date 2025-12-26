@@ -37,8 +37,10 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-#define DISABLE_SBUS_OUT_ENABLE    0x00
-#define AUTONOMUOS_RC_ENABLE      0x01
+#define UART_DEBUG		huart1
+
+#define DISABLE_SBUS_OUT_ENABLE    	0x00
+#define AUTONOMUOS_RC_ENABLE      	0x01
 
 #define SBUS_FRAME_LENGTH    	25
 #define SBUS_HEADER           	0x0F
@@ -48,10 +50,15 @@
 #define SBUS_SIGNAL_LOST        0x01
 #define SBUS_SIGNAL_FAILSAFE    0x03
 
+
 #define CHANNEL_COUNT			18
-#define CHANNEL_MIN_VALUE		272
+// #define CHANNEL_MIN_VALUE		272
+// #define CHANNEL_MID_VALUE		992
+// #define CHANNEL_MAX_VALUE		1712
+
+#define CHANNEL_MIN_VALUE		0
 #define CHANNEL_MID_VALUE		992
-#define CHANNEL_MAX_VALUE		1712
+#define CHANNEL_MAX_VALUE		2048
 
 /* USER CODE END PTD */
 
@@ -74,15 +81,6 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart6_rx;
 
 /* USER CODE BEGIN PV */
-// UART1 DMA TX Status Tracking
-typedef enum {
-	UART1_TX_IDLE = 0,      // DMA transmit idle/complete
-	UART1_TX_BUSY = 1,      // DMA transmit in progress
-	UART1_TX_ERROR = 2      // DMA transmit error occurred
-} UART1_TX_Status_t;
-
-volatile UART1_TX_Status_t uart1_tx_status = UART1_TX_IDLE;
-
 uint16_t failsafe_status;
 uint16_t SBUS_footer;
 uint8_t buf[SBUS_FRAME_LENGTH];
@@ -127,43 +125,26 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /**
- * @brief Function to redirect printf to UART using DMA for Debugging
+ * @brief Function to redirect printf to UART for Debugging
  * @param file File descriptor (not used)
  * @param pData Pointer to data to be sent
  * @param len Length of data to be sent
- * @return Number of bytes written, or 0 if DMA is busy
+ * @return Number of bytes written on success, -1 on failure
  */
+#ifdef UART_DEBUG
 int _write(int file, char *pData, int len)
 {
-	// Validate input parameters
-	if (pData == NULL || len <= 0)
-	{
-		return 0;  // Return 0 for no data to send
+	// Gửi dữ liệu qua UART1 với timeout 100ms (blocking)
+	HAL_StatusTypeDef status = HAL_UART_Transmit(&UART_DEBUG, (uint8_t*)pData, len, 100);
+
+	// Trả về len nếu thành công, -1 nếu thất bại
+	if (status == HAL_OK) {
+		return len;
+	} else {
+		return -1;  // Gửi thất bại (timeout, error, v.v.)
 	}
-
-	// Check if DMA is ready (not busy from previous transmission)
-	if (huart1.gState != HAL_UART_STATE_READY)
-	{
-		return 0;  // DMA is busy, return 0 (data not sent)
-	}
-
-	// Set status to BUSY before DMA transmission
-	uart1_tx_status = UART1_TX_BUSY;
-
-	// Transmit data using DMA (non-blocking)
-	HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(&huart1, (uint8_t*)pData, len);
-
-	// Check if DMA transmission was successful
-	if (status != HAL_OK)
-	{
-		uart1_tx_status = UART1_TX_ERROR;  // Set error status
-		return 0;  // DMA transmission failed, return 0
-	}
-
-//	HAL_UART_Transmit(&huart1, (uint8_t*)pData, len10);
-
-	return len;  // Return number of bytes queued fo// r transmission
 }
+#endif
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -177,36 +158,14 @@ int _write(int file, char *pData, int len)
  */
 void UpdateFailsafeStatus(uint8_t sbus_buf[SBUS_FRAME_LENGTH], uint16_t *failsafe_status)
 {
+	*failsafe_status = SBUS_SIGNAL_OK;
 	if (sbus_buf[23] & (1 << 3))
 		*failsafe_status = SBUS_SIGNAL_FAILSAFE;
 	else if (sbus_buf[23] & (1 << 2))
 		*failsafe_status = SBUS_SIGNAL_LOST;
+
 	else
 		*failsafe_status = SBUS_SIGNAL_OK;
-}
-
-/**
- * @brief Function to Set Failsafe Status in SBUS Buffer
- * @param sbus_buf Pointer to the SBUS buffer
- * @param failsafe_status The failsafe status to set
- * @return void
- */
-void SetSbusFailsafeStatus(uint8_t *sbus_buf, uint16_t failsafe_status)
-{
-	// Xóa các bit failsafe trước
-	sbus_buf[23] &= ~((1 << 2) | (1 << 3));
-
-	switch (failsafe_status) {
-	case SBUS_SIGNAL_LOST:
-		sbus_buf[23] |= (1 << 2);  // Signal Lost
-		break;
-	case SBUS_SIGNAL_FAILSAFE:
-		sbus_buf[23] |= (1 << 3);  // Failsafe
-		break;
-	default:
-		// SBUS_SIGNAL_OK: không cần set bit
-		break;
-	}
 }
 
 /**
@@ -215,7 +174,6 @@ void SetSbusFailsafeStatus(uint8_t *sbus_buf, uint16_t failsafe_status)
  * @return Trả về true nếu là chế độ điều khiển tự động, false nếu không
  */
 bool IsAutonomousControl(uint16_t CH[CHANNEL_COUNT]){
-
 	// Kiem tra channel 6 (Switch phai) va channel 8 (Button A)
 	if (0 < CH[5] && CH[5] < 600 && 1200 < CH[7] && CH[7] < 2000) {
 		// Neu channel 6 trong khoang (0, 600) va channel 8 trong khoang (1200, 2000), la che do tu dong
@@ -340,7 +298,7 @@ void SbusToChannel(const uint8_t sbus[SBUS_FRAME_LENGTH], uint16_t CH[CHANNEL_CO
 	CH[2]  = ((sbus[3] >> 6) | (sbus[4] << 2) | (sbus[5] << 10)) & 0x07FF;
 	CH[3]  = ((sbus[5] >> 1) | (sbus[6] << 7)) & 0x07FF;
 	CH[4]  = ((sbus[6] >> 4) | (sbus[7] << 4)) & 0x07FF;
-	CH[5]  = ((sbus[7] >> 7) | (sbus[8] << 1) | (sbus[9] << 9)) & 0x07FF;
+	CH[5]  = ((sbus[7] >> 7) | (sbus[8] << 1) | ((sbus[9] & 0x03) << 9)) & 0x07FF;
 	CH[6]  = ((sbus[9] >> 2) | (sbus[10] << 6)) & 0x07FF;
 	CH[7]  = ((sbus[10] >> 5) | (sbus[11] << 3)) & 0x07FF;
 	CH[8]  = (sbus[12] | (sbus[13] << 8)) & 0x07FF;
@@ -499,12 +457,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		else if (catch_signal == false)
 		{
 			catch_signal = true;
+			memset(buf, 0, SBUS_FRAME_LENGTH);  // Clear buffer trước khi nhận frame mới
 			HAL_UART_AbortReceive(&huart6); // thoat khoi ham receive dang chay
 			HAL_UART_Receive_DMA(&huart6, buf, SBUS_FRAME_LENGTH); // bat dau nhan 25 byte SBUS
 			return;
 
 		}
-		
+
 		if (IsValidSbusFrame(buf))
 		{
 			SbusToChannel(buf, CH); // Chuyển đổi SBUS sang kênh
@@ -521,13 +480,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			catch_signal = false; // Reset catch_signal để có thể nhận lại tín hiệu SBUS mới
 			start_counting = false;
 			pre_init_counter = 0;
+			memset(buf, 0, SBUS_FRAME_LENGTH);  // Clear buffer để tránh dữ liệu cũ bị hỏng
 			HAL_UART_AbortReceive(&huart6); // Hủy quá trình nhận hiện tại
-			HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1);  /**
+			HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1);  
+			/**
 			 * Bắt đầu lại quá trình nhận 1 byte để kiểm tra head_byte
 			 * Nếu nhận được head_byte đúng (0x0F), sẽ tiếp tục nhận 24 byte SBUS
 			 * Nếu không nhận được head_byte đúng, sẽ tiếp tục nhận 1 byte để kiểm tra
 			 */
-			return;
+			// return;
 		}
 	}
 	if (huart->Instance == huart2.Instance){
@@ -580,29 +541,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /**
- * @brief UART TX Complete callback (DMA transmission completed)
- * Called by HAL when UART DMA TX transfer is complete
- */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if (huart->Instance == huart1.Instance) {
-		// UART1 TX DMA completed
-		uart1_tx_status = UART1_TX_IDLE;  // Set status back to IDLE
-	}
-}
-
-/**
  * @brief UART error callback
  * Called by HAL when an UART error occurs (framing, noise, overrun, etc.).
  * We use this to restart reception on huart6 so that reconnects/resynchronization work.
  */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-	if (huart->Instance == huart1.Instance) {
-		// UART1 error occurred
-		uart1_tx_status = UART1_TX_ERROR;
-	}
-	else if (huart->Instance == huart6.Instance) {
+	if (huart->Instance == huart6.Instance) {
 		// Attempt to abort any ongoing transfers and restart reception of the head-byte
 		HAL_UART_AbortReceive(&huart6);
 		// Clear any DMA/USART error flags handled by HAL implicitly; add debug print
@@ -610,6 +555,13 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 		if (HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1) != HAL_OK) {
 			// If restart failed, try a small delay and try again
 			printf("HAL_UART_ErrorCallback: failed to restart huart6 DMA receive\r\n");
+		}
+	}
+	if (huart->Instance == huart2.Instance) {
+		// Restart receive
+		HAL_UART_AbortReceive(&huart2);
+		if (HAL_UART_Receive_IT(&huart2, rx_usb_buf, 10) != HAL_OK) {
+			printf("[USB ERROR] Failed to restart after error\r\n");
 		}
 	}
 }
@@ -654,10 +606,10 @@ int main(void)
 	// Start receiving 1 byte head check from SBUS (AirUnit) via DMA so we can detect frame head (0x0F)
 	// This ensures huart6 RX is active from boot and will be restarted after disconnects.
 	if (HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1) != HAL_OK) {
-		printf("Warning: Failed to start huart6 DMA reception at init\r\n");
+		printf("[WARN]: Failed to start huart6 DMA reception at init\r\n");
 	}
 	HAL_TIM_Base_Start_IT(&htim3); // Start timer for SBUS transmission
-	printf("INFO: setup done\r\n");
+	printf("[INFO]: Setup All\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -667,19 +619,24 @@ int main(void)
 
 		if (tx_sbus_flag == true){
 			HAL_UART_Receive_DMA(&huart6, pre_catch_buf, 1);
+			// UpdateFailsafeStatus(buf, &failsafe_status);
 			memcpy(sbus_tx_buffer, buf, SBUS_FRAME_LENGTH);
 
 			if (autonomous_status == true){
-				if (rx_usb_data_ok == true){
-					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
-					CH_auto[0] = cal_CH_auto_value(scaled_roll);
-					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
-					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
-					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
-
-					rx_usb_cmp++;
-					rx_usb_data_ok = false;
-				}
+//				if (rx_usb_data_ok == true){
+//					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
+//					CH_auto[0] = cal_CH_auto_value(scaled_roll);
+//					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
+//					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
+//					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
+//
+//					rx_usb_cmp++;
+//					rx_usb_data_ok = false;
+//				}
+				CH_auto[0] = cal_CH_auto_value(scaled_roll);
+				CH_auto[1] = cal_CH_auto_value(scaled_pitch);
+				CH_auto[2] = cal_CH_auto_value(scaled_throttle);
+				CH_auto[3] = cal_CH_auto_value(scaled_yaw);
 
 				// Chuyển đổi kênh sang SBUS_OUT_AUTO
 				sbus_tx_buffer[1] = (uint8_t) (CH_auto[0] & 0xFF);
@@ -688,8 +645,9 @@ int main(void)
 				sbus_tx_buffer[4] = (uint8_t) ((CH_auto[2] >> 2) & 0xFF);
 				sbus_tx_buffer[5] = (uint8_t) ((CH_auto[2] >> 10) & 0x01) | ((CH_auto[3] << 1) & 0xFE);
 				sbus_tx_buffer[6] = (uint8_t) ((CH_auto[3] >> 7) & 0x0F) | ((CH[4] << 4) & 0xF0);
+				
 			}
-
+			sbus_tx_buffer[23] &= ~((1 << 2) | (1 << 3)); // Xóa cả 2 bit failsafe và lost
 			// Gửi dữ liệu SBUS qua UART, tan so gui 100Hz (T_sbus = 10ms)
 			// Kiểm tra xem có cần tắt SBUS_OUT hay không
 			if (disable_sbus_out_status == false) {
@@ -941,17 +899,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PA1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
