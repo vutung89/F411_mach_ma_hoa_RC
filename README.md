@@ -11,6 +11,9 @@
 - cổng UART: 3 pin (RX - GND - TX)
 - cổng Debug: 6 pin (nạp st-link) : 3.3V - GND - SWDIO - SWCLK - RESET - ...
 ## Cách Flash Firmware
+### Option Bytes 0
+Dùng STM32 ST-link Ultility -> Program & Verifile (Verifile after Progr - Flash Checksum) -> Disconnect
+### Option Bytes 1
 - Kết nối cổng Debug vào St-link
 - Dùng STM32 ST-link Ultility -> Option Bytes (CTRL+B) -> Option Bytes = 0 -> Disconnect
 - Dùng STM32CubeIDE -> Run
@@ -43,4 +46,8 @@ hàm main để kiểm tra các lệnh khác nhau
 - Nếu gặp lỗi kết nối, hãy kiểm tra lại cổng serial và thiết bị.
 - Đảm bảo rằng thư viện crc đã được cài đặt để tính toán CRC16.
 
+## Sequence Diagram (sơ đồ tương tác)
+![sơ đồ tương tác](Doc/Sequence_Diagram.png)
+
+## HardWare PCB
 ![Hình ảnh Mạch](Doc/mach_ghi_de_RC.png)
