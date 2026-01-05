@@ -169,6 +169,17 @@ void UpdateFailsafeStatus(uint8_t sbus_buf[SBUS_FRAME_LENGTH], uint16_t *failsaf
 }
 
 /**
+ * @brief Function to Clear Failsafe Status in SBUS Buffer
+ * @param sbus_buf Pointer to the SBUS buffer
+ * @return void
+ */
+void ClearFailsafeStatus(uint8_t sbus_buf[SBUS_FRAME_LENGTH])
+{
+	sbus_buf[23] &= ~(1 << 2); // Clear bit Lost
+	sbus_buf[23] &= ~(1 << 3); // Clear bit Failsafe
+}
+
+/**
  * @brief Kiểm tra xem có phải chế độ điều khiển tự động hay không
  * @param CH Mảng chứa giá trị của 18 kênh
  * @return Trả về true nếu là chế độ điều khiển tự động, false nếu không
@@ -623,20 +634,16 @@ int main(void)
 			memcpy(sbus_tx_buffer, buf, SBUS_FRAME_LENGTH);
 
 			if (autonomous_status == true){
-//				if (rx_usb_data_ok == true){
-//					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
-//					CH_auto[0] = cal_CH_auto_value(scaled_roll);
-//					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
-//					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
-//					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
-//
-//					rx_usb_cmp++;
-//					rx_usb_data_ok = false;
-//				}
-				CH_auto[0] = cal_CH_auto_value(scaled_roll);
-				CH_auto[1] = cal_CH_auto_value(scaled_pitch);
-				CH_auto[2] = cal_CH_auto_value(scaled_throttle);
-				CH_auto[3] = cal_CH_auto_value(scaled_yaw);
+				if (rx_usb_data_ok == true){
+					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
+					CH_auto[0] = cal_CH_auto_value(scaled_roll);
+					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
+					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
+					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
+
+					rx_usb_cmp++;
+					rx_usb_data_ok = false;
+				}
 
 				// Chuyển đổi kênh sang SBUS_OUT_AUTO
 				sbus_tx_buffer[1] = (uint8_t) (CH_auto[0] & 0xFF);
@@ -647,7 +654,9 @@ int main(void)
 				sbus_tx_buffer[6] = (uint8_t) ((CH_auto[3] >> 7) & 0x0F) | ((CH[4] << 4) & 0xF0);
 				
 			}
-			sbus_tx_buffer[23] &= ~((1 << 2) | (1 << 3)); // Xóa cả 2 bit failsafe và lost
+			// Xóa trạng thái failsafe trước khi gửi
+			ClearFailsafeStatus(sbus_tx_buffer);
+			
 			// Gửi dữ liệu SBUS qua UART, tan so gui 100Hz (T_sbus = 10ms)
 			// Kiểm tra xem có cần tắt SBUS_OUT hay không
 			if (disable_sbus_out_status == false) {
