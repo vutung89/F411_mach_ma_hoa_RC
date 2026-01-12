@@ -56,7 +56,7 @@ logging.basicConfig(
 # PARAMETERS
 # ------------------------------------------------------------------------------------------------------
 # PowerShell: [System.IO.Ports.SerialPort]::GetPortNames()
-MACH_GHI_DE_RC_PORT = 'COM12'
+MACH_GHI_DE_RC_PORT = 'COM11'
 # MACH_GHI_DE_RC_PORT = '/dev/ttyUSB0'
 BAUDRATE = 115200
 TIME_DELAY = 1  # Thời gian chờ giữa các lệnh
@@ -66,10 +66,6 @@ RC_ROLL = -0.25     # Giá trị RC roll mặc định (-1 đến 1)
 RC_YAW = 0.15       # Giá trị RC yaw mặc định (-1 đến 1)
 RC_THROTTLE = 0.5   # Giá trị RC throttle mặc định (0 đến 1)
 
-# RC Channel Limits
-CHANNEL_MIN = 272    # Giá trị tối thiểu của kênh RC
-CHANNEL_MID = 992    # Giá trị giữa của kênh RC
-CHANNEL_MAX = 1712   # Giá trị tối đa của kênh RC
 #------------------------------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------------------------------

@@ -169,17 +169,6 @@ void UpdateFailsafeStatus(uint8_t sbus_buf[SBUS_FRAME_LENGTH], uint16_t *failsaf
 }
 
 /**
- * @brief Function to Clear Failsafe Status in SBUS Buffer
- * @param sbus_buf Pointer to the SBUS buffer
- * @return void
- */
-void ClearFailsafeStatus(uint8_t sbus_buf[SBUS_FRAME_LENGTH])
-{
-	sbus_buf[23] &= ~(1 << 2); // Clear bit Lost
-	sbus_buf[23] &= ~(1 << 3); // Clear bit Failsafe
-}
-
-/**
  * @brief Kiểm tra xem có phải chế độ điều khiển tự động hay không
  * @param CH Mảng chứa giá trị của 18 kênh
  * @return Trả về true nếu là chế độ điều khiển tự động, false nếu không
@@ -309,7 +298,7 @@ void SbusToChannel(const uint8_t sbus[SBUS_FRAME_LENGTH], uint16_t CH[CHANNEL_CO
 	CH[2]  = ((sbus[3] >> 6) | (sbus[4] << 2) | (sbus[5] << 10)) & 0x07FF;
 	CH[3]  = ((sbus[5] >> 1) | (sbus[6] << 7)) & 0x07FF;
 	CH[4]  = ((sbus[6] >> 4) | (sbus[7] << 4)) & 0x07FF;
-	CH[5]  = ((sbus[7] >> 7) | (sbus[8] << 1) | (sbus[9] << 9)) & 0x07FF;
+	CH[5]  = ((sbus[7] >> 7) | (sbus[8] << 1) | ((sbus[9] & 0x03) << 9)) & 0x07FF;
 	CH[6]  = ((sbus[9] >> 2) | (sbus[10] << 6)) & 0x07FF;
 	CH[7]  = ((sbus[10] >> 5) | (sbus[11] << 3)) & 0x07FF;
 	CH[8]  = (sbus[12] | (sbus[13] << 8)) & 0x07FF;
@@ -634,16 +623,20 @@ int main(void)
 			memcpy(sbus_tx_buffer, buf, SBUS_FRAME_LENGTH);
 
 			if (autonomous_status == true){
-				if (rx_usb_data_ok == true){
-					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
-					CH_auto[0] = cal_CH_auto_value(scaled_roll);
-					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
-					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
-					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
-
-					rx_usb_cmp++;
-					rx_usb_data_ok = false;
-				}
+//				if (rx_usb_data_ok == true){
+//					// ghi đè dữ liệu 4 kênh roll, pitch, throttle, yaw
+//					CH_auto[0] = cal_CH_auto_value(scaled_roll);
+//					CH_auto[1] = cal_CH_auto_value(scaled_pitch);
+//					CH_auto[2] = cal_CH_auto_value(scaled_throttle);
+//					CH_auto[3] = cal_CH_auto_value(scaled_yaw);
+//
+//					rx_usb_cmp++;
+//					rx_usb_data_ok = false;
+//				}
+				CH_auto[0] = cal_CH_auto_value(scaled_roll);
+				CH_auto[1] = cal_CH_auto_value(scaled_pitch);
+				CH_auto[2] = cal_CH_auto_value(scaled_throttle);
+				CH_auto[3] = cal_CH_auto_value(scaled_yaw);
 
 				// Chuyển đổi kênh sang SBUS_OUT_AUTO
 				sbus_tx_buffer[1] = (uint8_t) (CH_auto[0] & 0xFF);
@@ -654,9 +647,7 @@ int main(void)
 				sbus_tx_buffer[6] = (uint8_t) ((CH_auto[3] >> 7) & 0x0F) | ((CH[4] << 4) & 0xF0);
 				
 			}
-			// Xóa trạng thái failsafe trước khi gửi
-			ClearFailsafeStatus(sbus_tx_buffer);
-			
+			sbus_tx_buffer[23] &= ~((1 << 2) | (1 << 3)); // Xóa cả 2 bit failsafe và lost
 			// Gửi dữ liệu SBUS qua UART, tan so gui 100Hz (T_sbus = 10ms)
 			// Kiểm tra xem có cần tắt SBUS_OUT hay không
 			if (disable_sbus_out_status == false) {
